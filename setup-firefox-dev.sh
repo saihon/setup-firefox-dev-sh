@@ -1,110 +1,112 @@
 #!/usr/bin/env bash
 
 NAME=$(basename "$0")
-VERSION="v0.0.1"
+VERSION="v0.1.0"
 readonly NAME VERSION
 
 URL="https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64&lang=en-US"
 TARGET_DIR="/opt/firefox-dev"
-ARCHIVE_FILE="/tmp/Firefox-dev.tar.bz2"
+ARCHIVE_FILE="" # Will be set by mktemp
 SYMLINK_FILE="/usr/local/bin/firefox-dev"
 DESKTOP_FILE="/usr/share/applications/Firefox-dev.desktop"
 readonly URL TARGET_DIR ARCHIVE_FILE SYMLINK_FILE DESKTOP_FILE
 
-func-output_error_exit() {
+output_error_exit() {
     echo "Error: $1." 1>&2
     exit 1
 }
 
-func-download() {
-    wget -O "$ARCHIVE_FILE" "$URL"
-}
-
-func-delete_archive() {
-    if [ -f "$ARCHIVE_FILE" ]; then
+cleanup() {
+    if [[ -n "$ARCHIVE_FILE" && -f "$ARCHIVE_FILE" ]]; then
         rm -f "$ARCHIVE_FILE"
     fi
 }
 
-func-expand_archive_to_target_directory() {
-    if [ ! -d "$TARGET_DIR" ]; then
-        mkdir "$TARGET_DIR"
+trap cleanup EXIT
+
+download() {
+    # Use --content-disposition to get the filename from the server.
+    # The output of wget (on stderr) is parsed to find the saved filename.
+    local output
+    output=$(wget -P /tmp --content-disposition "$URL" 2>&1)
+    if [[ $? -ne 0 ]]; then
+        echo "$output" >&2
+        return 1
     fi
-    tar xjf "$ARCHIVE_FILE" -C "$TARGET_DIR" --strip-components 1
+    ARCHIVE_FILE=$(echo "$output" | grep 'Saving to: ‘' | sed "s/.*Saving to: ‘\([^’]*\)’.*/\1/")
 }
 
-func-delete-target-directory() {
-    if [ -d "$TARGET_DIR" ]; then
-        rm -rf "$TARGET_DIR"
-    fi
+expand_archive_to_target_directory() {
+    mkdir -p "$TARGET_DIR"
+    tar xaf "$ARCHIVE_FILE" -C "$TARGET_DIR" --strip-components 1
 }
 
-func-create_symlink() {
-    func-delete_symlink
+delete_target_directory() {
+    rm -rf "$TARGET_DIR"
+}
+
+create_symlink() {
+    delete_symlink
     ln -s "${TARGET_DIR}/firefox" "$SYMLINK_FILE"
 }
 
-func-delete_symlink() {
-    if [ -L "$SYMLINK_FILE" ]; then
-        unlink "$SYMLINK_FILE"
-    fi
+delete_symlink() {
+    rm -f "$SYMLINK_FILE"
 }
 
-func-create_desktop_file() {
+create_desktop_file() {
     # Reference: https://raw.githubusercontent.com/mozilla/sumo-kb/main/install-firefox-linux/firefox.desktop
-    {
-        echo "[Desktop Entry]"
-        echo "Version=1.0"
-        echo "Name=Firefox Developer Edition"
-        echo "Comment=Browse the World Wide Web"
-        echo "Exec=$SYMLINK_FILE"
-        echo "GenericName=Web Browser"
-        echo "Keywords=Internet;WWW;Browser;Web;Explorer"
-        echo "Terminal=false"
-        echo "X-MultipleArgs=false"
-        echo "Type=Application"
-        echo "Icon=$TARGET_DIR/browser/chrome/icons/default/default128.png"
-        echo "Categories=GNOME;GTK;Network;WebBrowser;"
-        echo "MimeType=text/html;text/xml;application/xhtml+xml;application/xml;application/rss+xml;application/rdf+xml;image/gif;image/jpeg;image/png;x-scheme-handler/http;x-scheme-handler/https;x-scheme-handler/ftp;x-scheme-handler/chrome;video/webm;application/x-xpinstall;"
-        echo "Encoding=UTF-8"
-        # StartupNotify=true
-    } >>"$DESKTOP_FILE"
+    cat >"$DESKTOP_FILE" <<-EOF
+	[Desktop Entry]
+	Version=1.0
+	Name=Firefox Developer Edition
+	Comment=Browse the World Wide Web
+	Exec=$SYMLINK_FILE
+	GenericName=Web Browser
+	Keywords=Internet;WWW;Browser;Web;Explorer
+	Terminal=false
+	X-MultipleArgs=false
+	Type=Application
+	Icon=$TARGET_DIR/browser/chrome/icons/default/default128.png
+	Categories=GNOME;GTK;Network;WebBrowser;
+	MimeType=text/html;text/xml;application/xhtml+xml;application/xml;application/rss+xml;application/rdf+xml;image/gif;image/jpeg;image/png;x-scheme-handler/http;x-scheme-handler/https;x-scheme-handler/ftp;x-scheme-handler/chrome;video/webm;application/x-xpinstall;
+	Encoding=UTF-8
+	StartupNotify=true
+	EOF
 }
 
-func-delete_desktop_file() {
-    if [ -f "$DESKTOP_FILE" ]; then
-        rm -rf "$DESKTOP_FILE"
-    fi
+delete_desktop_file() {
+    rm -f "$DESKTOP_FILE"
 }
 
-func-delete_root() {
+ensure_root() {
     if [ "$(id -u)" -ne 0 ]; then
-        func-output_error_exit "Please run as root"
+        output_error_exit "Please run as root"
     fi
+}
+
+do_install_or_update() {
+    ensure_root
+    if ! download; then output_error_exit "Failed to download: $URL"; fi
+    if ! expand_archive_to_target_directory; then output_error_exit "Failed to expand archive: $ARCHIVE_FILE"; fi
 }
 
 case "$1" in
 -i | --install | install)
-    func-delete_root
-    if ! func-download; then func-output_error_exit "Failed to download: $URL"; fi
-    if ! func-expand_archive_to_target_directory; then func-output_error_exit "Failed to expand archive: $ARCHIVE_FILE"; fi
-    if ! func-create_symlink; then func-output_error_exit "Failed to create symlink: $SYMLINK_FILE"; fi
-    if ! func-create_desktop_file; then func-output_error_exit "Failed to create desktop file: $DESKTOP_FILE"; fi
-    if ! func-delete_archive; then func-output_error_exit "Failed to delete archive: $ARCHIVE_FILE"; fi
+    do_install_or_update
+    if ! create_symlink; then output_error_exit "Failed to create symlink: $SYMLINK_FILE"; fi
+    if ! create_desktop_file; then output_error_exit "Failed to create desktop file: $DESKTOP_FILE"; fi
     printf "\nInstallation successful.\n"
     ;;
 -u | --update | update)
-    func-delete_root
-    if ! func-download; then func-output_error_exit "Failed to download: $URL"; fi
-    if ! func-expand_archive_to_target_directory; then func-output_error_exit "Failed to expand archive: $ARCHIVE_FILE"; fi
-    if ! func-delete_archive; then func-output_error_exit "Failed to delete archive: $ARCHIVE_FILE"; fi
+    do_install_or_update
     printf "\nUpdate successful.\n"
     ;;
 -U | --uninstall | uninstall)
-    func-delete_root
-    if ! func-delete-target-directory; then func-output_error_exit "Failed to delete directory: $TARGET_DIR"; fi
-    if ! func-delete_symlink; then func-output_error_exit "Failed to delete symlink: $SYMLINK_FILE"; fi
-    if ! func-delete_desktop_file; then func-output_error_exit "Failed to delete desktop file: $DESKTOP_FILE"; fi
+    ensure_root
+    if ! delete_target_directory; then output_error_exit "Failed to delete directory: $TARGET_DIR"; fi
+    if ! delete_symlink; then output_error_exit "Failed to delete symlink: $SYMLINK_FILE"; fi
+    if ! delete_desktop_file; then output_error_exit "Failed to delete desktop file: $DESKTOP_FILE"; fi
     printf "\nUninstall successful.\n"
     ;;
 -v | --version | version)
