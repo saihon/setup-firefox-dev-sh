@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 NAME=$(basename "$0")
-VERSION="v0.1.0"
+VERSION="v0.2.0"
 readonly NAME VERSION
 
 URL="https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64&lang=en-US"
@@ -9,7 +9,7 @@ TARGET_DIR="/opt/firefox-dev"
 ARCHIVE_FILE="" # Will be set by mktemp
 SYMLINK_FILE="/usr/local/bin/firefox-dev"
 DESKTOP_FILE="/usr/share/applications/Firefox-dev.desktop"
-readonly URL TARGET_DIR ARCHIVE_FILE SYMLINK_FILE DESKTOP_FILE
+readonly URL TARGET_DIR SYMLINK_FILE DESKTOP_FILE
 
 output_error_exit() {
     echo "Error: $1." 1>&2
@@ -87,15 +87,23 @@ ensure_root() {
 
 do_install_or_update() {
     ensure_root
-    if ! download; then output_error_exit "Failed to download: $URL"; fi
-    if ! expand_archive_to_target_directory; then output_error_exit "Failed to expand archive: $ARCHIVE_FILE"; fi
+    printf "Downloading Firefox Developer Edition...\n"
+    if ! download; then
+        output_error_exit "Failed to download from $URL"
+    fi
+    printf "Extracting archive: %s\n" "$ARCHIVE_FILE"
+    if ! expand_archive_to_target_directory; then
+        output_error_exit "Failed to extract archive: $ARCHIVE_FILE"
+    fi
 }
 
 case "$1" in
 -i | --install | install)
     do_install_or_update
-    if ! create_symlink; then output_error_exit "Failed to create symlink: $SYMLINK_FILE"; fi
-    if ! create_desktop_file; then output_error_exit "Failed to create desktop file: $DESKTOP_FILE"; fi
+    printf "Creating symbolic link: %s\n" "$SYMLINK_FILE"
+    if ! create_symlink; then output_error_exit "Failed to create symbolic link"; fi
+    printf "Creating desktop entry: %s\n" "$DESKTOP_FILE"
+    if ! create_desktop_file; then output_error_exit "Failed to create desktop entry"; fi
     printf "\nInstallation successful.\n"
     ;;
 -u | --update | update)
@@ -104,9 +112,15 @@ case "$1" in
     ;;
 -U | --uninstall | uninstall)
     ensure_root
-    if ! delete_target_directory; then output_error_exit "Failed to delete directory: $TARGET_DIR"; fi
-    if ! delete_symlink; then output_error_exit "Failed to delete symlink: $SYMLINK_FILE"; fi
-    if ! delete_desktop_file; then output_error_exit "Failed to delete desktop file: $DESKTOP_FILE"; fi
+    printf "Deleting target directory: %s\n" "$TARGET_DIR"
+    if ! delete_target_directory; then output_error_exit "Failed to delete directory"; fi
+
+    printf "Deleting symbolic link: %s\n" "$SYMLINK_FILE"
+    if ! delete_symlink; then output_error_exit "Failed to delete symbolic link"; fi
+
+    printf "Deleting desktop entry: %s\n" "$DESKTOP_FILE"
+    if ! delete_desktop_file; then output_error_exit "Failed to delete desktop entry"; fi
+
     printf "\nUninstall successful.\n"
     ;;
 -v | --version | version)
