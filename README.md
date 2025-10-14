@@ -39,7 +39,7 @@ Update.
 sudo setup-firefox-dev.sh update
 ```
 
-1. Download archive `.tar.gz2` to `/tmp` directory.
+1. Download archive file (e.g., `.tar.bz2`, `.tar.xz`) to `/tmp` directory.
 2. Expand it to `/opt/firefox-dev` directory.
 
 
