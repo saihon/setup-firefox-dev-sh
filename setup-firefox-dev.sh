@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 NAME=$(basename "$0")
-VERSION="v0.4.0"
+VERSION="v0.4.1"
 readonly NAME VERSION
 
 URL="https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64&lang=en-US"
@@ -144,6 +144,16 @@ save_version_info() {
     echo "$version_to_save" >"$VERSION_FILE"
 }
 
+perform_update() {
+    local latest_version="$1"
+    local latest_filename="$2"
+
+    download "$latest_filename"
+    printf "Extracting archive: %s\n" "$ARCHIVE_FILE"
+    if ! expand_archive_to_target_directory; then output_error_exit "Failed to extract archive"; fi
+    save_version_info "$latest_version"
+}
+
 run_install() {
     printf "Fetching latest version information...\n"
     latest_info=$(get_latest_version_info)
@@ -184,10 +194,7 @@ run_update() {
     fi
 
     printf "New version available: %s\n" "$latest_version"
-    download "$latest_filename"
-    printf "Extracting archive: %s\n" "$ARCHIVE_FILE"
-    if ! expand_archive_to_target_directory; then output_error_exit "Failed to extract archive"; fi
-    save_version_info "$latest_version"
+    perform_update "$latest_version" "$latest_filename"
     printf "\nUpdate to version %s successful.\n" "$latest_version"
     exit 0
 }
