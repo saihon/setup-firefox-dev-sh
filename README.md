@@ -34,7 +34,7 @@ sudo mv setup-firefox-dev.sh /usr/local/bin/
 |update|-u,--update|Update if a new version is available.|
 |force-update|--force-update|Force update without version check.|
 |check-update|--check-update|Check for available updates.|
-|uninstall|-U,--uninstall|Uninstall Firefox Developer Edition.|
+|uninstall|--uninstall|Uninstall Firefox Developer Edition.|
 |version|-v,--version|Show the script version.|
 |help|-h,--help|Display the help message.|
 
