@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 NAME=$(basename "$0")
-VERSION="v0.3.0"
+VERSION="v0.3.1"
 readonly NAME VERSION
 
 URL="https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64&lang=en-US"
@@ -154,6 +154,24 @@ perform_update() {
     save_version_info "$latest_version"
 }
 
+show_version_info() {
+    echo "$NAME: $VERSION"
+    exit 0
+}
+
+show_help() {
+    printf "\nUsage: %s [options] [arguments]\n" "$NAME"
+    printf "\nOptions:\n"
+    printf "  -i, --install        Install Firefox developer edition.\n"
+    printf "  -u, --update         Update if a new version is available.\n"
+    printf "      --update-force   Force update without version check.\n"
+    printf "      --uninstall      Uninstall Firefox developer edition.\n"
+    printf "  -v, --version        Output version information and exit.\n"
+    printf "  -h, --help           Display this help and exit.\n"
+    printf "\n"
+    exit 0
+}
+
 case "$1" in
 -i | --install | install)
     check_dependencies
@@ -214,7 +232,7 @@ case "$1" in
     perform_update "$latest_version" "$latest_filename"
     printf "\nForced update to version %s successful.\n" "$latest_version"
     ;;
--U | --uninstall | uninstall)
+--uninstall | uninstall)
     check_dependencies
     ensure_root
     printf "Deleting target directory: %s\n" "$TARGET_DIR"
@@ -227,19 +245,9 @@ case "$1" in
     printf "\nUninstall successful.\n"
     ;;
 -v | --version | version)
-    echo "$NAME: $VERSION"
-    exit 0
+    show_version_info
     ;;
 *)
-    printf "\nUsage: %s [options] [arguments]\n" "$NAME"
-    printf "\nOptions:\n"
-    printf "  -i, --install        Install Firefox developer edition.\n"
-    printf "  -u, --update         Update if a new version is available.\n"
-    printf "      --update-force   Force update without version check.\n"
-    printf "  -U, --uninstall      Uninstall Firefox developer edition.\n"
-    printf "  -v, --version        Output version information and exit.\n"
-    printf "  -h, --help           Display this help and exit.\n"
-    printf "\n"
-    exit 0
+    show_help
     ;;
 esac
