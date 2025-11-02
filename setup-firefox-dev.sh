@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 NAME=$(basename "$0")
-VERSION="v0.3.1"
+VERSION="v0.3.2"
 readonly NAME VERSION
 
 URL="https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64&lang=en-US"
@@ -154,6 +154,77 @@ perform_update() {
     save_version_info "$latest_version"
 }
 
+run_install() {
+    printf "Fetching latest version information...\n"
+    latest_info=$(get_latest_version_info)
+    if [[ $? -ne 0 ]]; then
+        output_error_exit "Could not get latest version info"
+    fi
+    IFS='|' read -r latest_version latest_filename latest_url <<<"$latest_info"
+
+    perform_update "$latest_version" "$latest_filename"
+
+    printf "Creating symbolic link: %s\n" "$SYMLINK_FILE"
+    if ! create_symlink; then output_error_exit "Failed to create symbolic link"; fi
+
+    printf "Creating desktop entry: %s\n" "$DESKTOP_FILE"
+    if ! create_desktop_file; then output_error_exit "Failed to create desktop entry"; fi
+
+    printf "\nInstallation successful.\n"
+    exit 0
+}
+
+run_update() {
+    installed_version=$(get_installed_version)
+    if [[ "$installed_version" == "0" ]]; then
+        output_error_exit "Could not determine installed version. The app may not have been installed by this script. Use 'install' to re-install, or '--update-force' to overwrite."
+    fi
+
+    printf "Currently installed version: %s\n" "$installed_version"
+    printf "Fetching latest version information...\n"
+    latest_info=$(get_latest_version_info)
+    if [[ $? -ne 0 ]]; then
+        output_error_exit "Could not get latest version info"
+    fi
+    IFS='|' read -r latest_version latest_filename latest_url <<<"$latest_info"
+
+    if [[ "$installed_version" == "$latest_version" ]]; then
+        printf "You already have the latest version (%s).\n" "$installed_version"
+        exit 0
+    fi
+
+    printf "New version available: %s\n" "$latest_version"
+    perform_update "$latest_version" "$latest_filename"
+    printf "\nUpdate to version %s successful.\n" "$latest_version"
+    exit 0
+}
+
+run_update_force() {
+    printf "Forcing update, skipping version check.\n"
+    printf "Fetching latest version information...\n"
+    latest_info=$(get_latest_version_info)
+    if [[ $? -ne 0 ]]; then
+        output_error_exit "Could not get latest version info"
+    fi
+    IFS='|' read -r latest_version latest_filename latest_url <<<"$latest_info"
+
+    perform_update "$latest_version" "$latest_filename"
+    printf "\nForced update to version %s successful.\n" "$latest_version"
+    exit 0
+}
+
+run_uninstall() {
+    printf "Deleting target directory: %s\n" "$TARGET_DIR"
+    if ! delete_target_directory; then output_error_exit "Failed to delete directory"; fi
+    printf "Deleting symbolic link: %s\n" "$SYMLINK_FILE"
+    if ! delete_symlink; then output_error_exit "Failed to delete symbolic link"; fi
+    printf "Deleting desktop entry: %s\n" "$DESKTOP_FILE"
+    if ! delete_desktop_file; then output_error_exit "Failed to delete desktop entry"; fi
+
+    printf "\nUninstall successful.\n"
+    exit 0
+}
+
 show_version_info() {
     echo "$NAME: $VERSION"
     exit 0
@@ -176,73 +247,22 @@ case "$1" in
 -i | --install | install)
     check_dependencies
     ensure_root
-    printf "Fetching latest version information...\n"
-    latest_info=$(get_latest_version_info)
-    if [[ $? -ne 0 ]]; then
-        output_error_exit "Could not get latest version info"
-    fi
-    IFS='|' read -r latest_version latest_filename latest_url <<<"$latest_info"
-
-    perform_update "$latest_version" "$latest_filename"
-
-    printf "Creating symbolic link: %s\n" "$SYMLINK_FILE"
-    if ! create_symlink; then output_error_exit "Failed to create symbolic link"; fi
-
-    printf "Creating desktop entry: %s\n" "$DESKTOP_FILE"
-    if ! create_desktop_file; then output_error_exit "Failed to create desktop entry"; fi
-
-    printf "\nInstallation successful.\n"
+    run_install
     ;;
 -u | --update | update)
     check_dependencies
     ensure_root
-    installed_version=$(get_installed_version)
-    if [[ "$installed_version" == "0" ]]; then
-        output_error_exit "Could not determine installed version. The app may not have been installed by this script. Use 'install' to re-install, or '--update-force' to overwrite."
-    fi
-
-    printf "Currently installed version: %s\n" "$installed_version"
-    printf "Fetching latest version information...\n"
-    latest_info=$(get_latest_version_info)
-    if [[ $? -ne 0 ]]; then
-        output_error_exit "Could not get latest version info"
-    fi
-    IFS='|' read -r latest_version latest_filename latest_url <<<"$latest_info"
-
-    if [[ "$installed_version" == "$latest_version" ]]; then
-        printf "You already have the latest version (%s).\n" "$installed_version"
-        exit 0
-    fi
-
-    printf "New version available: %s\n" "$latest_version"
-    perform_update "$latest_version" "$latest_filename"
-    printf "\nUpdate to version %s successful.\n" "$latest_version"
+    run_update
     ;;
 --update-force | update-force)
     check_dependencies
     ensure_root
-    printf "Forcing update, skipping version check.\n"
-    printf "Fetching latest version information...\n"
-    latest_info=$(get_latest_version_info)
-    if [[ $? -ne 0 ]]; then
-        output_error_exit "Could not get latest version info"
-    fi
-    IFS='|' read -r latest_version latest_filename latest_url <<<"$latest_info"
-
-    perform_update "$latest_version" "$latest_filename"
-    printf "\nForced update to version %s successful.\n" "$latest_version"
+    run_update_force
     ;;
 --uninstall | uninstall)
     check_dependencies
     ensure_root
-    printf "Deleting target directory: %s\n" "$TARGET_DIR"
-    if ! delete_target_directory; then output_error_exit "Failed to delete directory"; fi
-    printf "Deleting symbolic link: %s\n" "$SYMLINK_FILE"
-    if ! delete_symlink; then output_error_exit "Failed to delete symbolic link"; fi
-    printf "Deleting desktop entry: %s\n" "$DESKTOP_FILE"
-    if ! delete_desktop_file; then output_error_exit "Failed to delete desktop entry"; fi
-
-    printf "\nUninstall successful.\n"
+    run_uninstall
     ;;
 -v | --version | version)
     show_version_info
