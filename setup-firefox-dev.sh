@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 NAME=$(basename "$0")
-VERSION="v0.4.1"
+VERSION="v0.4.2"
 readonly NAME VERSION
 
 URL="https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64&lang=en-US"
@@ -177,7 +177,7 @@ run_install() {
 run_update() {
     installed_version=$(get_installed_version)
     if [[ "$installed_version" == "0" ]]; then
-        output_error_exit "Could not determine installed version. The app may not have been installed by this script. Use 'install' to re-install, or '--update-force' to overwrite."
+        output_error_exit "Could not determine installed version. The app may not have been installed by this script. Use 'install' to re-install, or '--force-update' to overwrite."
     fi
 
     printf "Currently installed version: %s\n" "$installed_version"
@@ -217,7 +217,7 @@ run_update_check() {
     local installed_version
     installed_version=$(get_installed_version)
     if [[ "$installed_version" == "0" ]]; then
-        output_error_exit "Firefox Developer Edition is not installed. Please use the 'install' command first"
+        output_error_exit "Could not determine installed version. The app may not have been installed by this script. Use 'install' to re-install, or '--force-update' to overwrite."
     fi
 
     printf "Currently installed version: %s.\n" "$installed_version"
@@ -266,6 +266,9 @@ show_help() {
     printf "      --uninstall      Uninstall Firefox developer edition.\n"
     printf "  -v, --version        Output version information and exit.\n"
     printf "  -h, --help           Display this help and exit.\n"
+    printf "\nNote:\n"
+    printf "  Options can also be specified without the '--' prefix.\n"
+    printf "  (e.g., 'install' instead of '--install')\n"
     printf "\n"
     exit 0
 }
