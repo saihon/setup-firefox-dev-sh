@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 NAME=$(basename "$0")
-VERSION="v0.3.2"
+VERSION="v0.3.3"
 readonly NAME VERSION
 
 URL="https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64&lang=en-US"
@@ -228,7 +228,7 @@ show_help() {
     printf "\nOptions:\n"
     printf "  -i, --install        Install Firefox developer edition.\n"
     printf "  -u, --update         Update if a new version is available.\n"
-    printf "      --update-force   Force update without version check.\n"
+    printf "      --force-update   Force update without version check.\n"
     printf "      --uninstall      Uninstall Firefox developer edition.\n"
     printf "  -v, --version        Output version information and exit.\n"
     printf "  -h, --help           Display this help and exit.\n"
@@ -247,7 +247,7 @@ case "$1" in
     ensure_root
     run_update
     ;;
---update-force | update-force)
+--force-update | force-update)
     check_dependencies
     ensure_root
     run_update_force
