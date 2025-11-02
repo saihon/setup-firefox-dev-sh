@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 NAME=$(basename "$0")
-VERSION="v0.3.3"
+VERSION="v0.4.0"
 readonly NAME VERSION
 
 URL="https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64&lang=en-US"
@@ -206,6 +206,32 @@ run_update_force() {
     exit 0
 }
 
+run_update_check() {
+    local installed_version
+    installed_version=$(get_installed_version)
+    if [[ "$installed_version" == "0" ]]; then
+        output_error_exit "Firefox Developer Edition is not installed. Please use the 'install' command first"
+    fi
+
+    printf "Currently installed version: %s.\n" "$installed_version"
+    printf "Fetching latest version information...\n"
+    local latest_info
+    latest_info=$(get_latest_version_info)
+    if [[ $? -ne 0 ]]; then
+        output_error_exit "Could not get latest version info"
+    fi
+    local latest_version
+    IFS='|' read -r latest_version _ _ <<<"$latest_info"
+
+    if [[ "$installed_version" == "$latest_version" ]]; then
+        printf "You already have the latest version (%s).\n" "$installed_version"
+    else
+        printf "A new version is available: %s.\n" "$latest_version"
+        printf "Run '%s update' to install it.\n" "$NAME"
+    fi
+    exit 0
+}
+
 run_uninstall() {
     printf "Deleting target directory: %s\n" "$TARGET_DIR"
     if ! delete_target_directory; then output_error_exit "Failed to delete directory"; fi
@@ -229,6 +255,7 @@ show_help() {
     printf "  -i, --install        Install Firefox developer edition.\n"
     printf "  -u, --update         Update if a new version is available.\n"
     printf "      --force-update   Force update without version check.\n"
+    printf "      --check-update   Check for available updates.\n"
     printf "      --uninstall      Uninstall Firefox developer edition.\n"
     printf "  -v, --version        Output version information and exit.\n"
     printf "  -h, --help           Display this help and exit.\n"
@@ -251,6 +278,11 @@ case "$1" in
     check_dependencies
     ensure_root
     run_update_force
+    ;;
+--check-update | check-update)
+    check_dependencies
+    ensure_root
+    run_update_check
     ;;
 --uninstall | uninstall)
     check_dependencies
