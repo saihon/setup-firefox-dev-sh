@@ -26,55 +26,58 @@ sudo mv setup-firefox-dev.sh /usr/local/bin/
 <br/>
 
 
-# Usage
+## Usage
 
-|Command|Alias(es)|Description|
-|:------|:--------|:----------|
-|install|-i,--install|Install Firefox Developer Edition.|
-|update|-u,--update|Update if a new version is available.|
-|force-update|--force-update|Force update without version check.|
-|check-update|--check-update|Check for available updates.|
-|uninstall|--uninstall|Uninstall Firefox Developer Edition.|
-|version|-v,--version|Show the script version.|
-|help|-h,--help|Display the help message.|
+```sh
+setup-firefox-dev.sh <subcommand> [options]
+```
 
+### Subcommands
 
-## Install
-
-Installs the latest Firefox Developer Edition.
+#### `install`
+Installs or reinstalls the latest Firefox Developer Edition.
 
 ```sh
 sudo setup-firefox-dev.sh install
 ```
+**Options:**
+*   `-l, --lang <LANG>`: Specify the language for installation (e.g., `ja`, `de`). The chosen language will be remembered for future updates.
+*   `-v, --version`: Show the currently installed version and exit. This option does not require sudo.
 
-1. Download the latest `.tar.gz2` archive to `/tmp` directory.
+**Process:**
+1. Downloads the latest `.tar.bz2` archive to the `/tmp` directory.
 2. Extracts the archive to `/opt/firefox-dev`.
 3. Creates a symbolic link at `/usr/local/bin/firefox-dev`.
 4. Creates a desktop entry file at `/usr/share/applications/Firefox-dev.desktop`.
-5. Saves the version information to `/opt/firefox-dev/.version`.
+5. Saves the version and language information to `/opt/firefox-dev/.version`.
 
-## Update
-
+#### `update`
 Checks for a new version and updates if one is found.
 
 ```sh
 sudo setup-firefox-dev.sh update
 ```
+**Options:**
+*   `-c, --check`: Only check for a new version without performing an update. This option does not require sudo.
+*   `-l, --lang <LANG>`: Specify a language for the update. The new language will be saved and used for subsequent updates.
 
-1. Compares the currently iinstalled version with the latest version available on the server.
+**Process:**
+1. Compares the currently installed version with the latest version available on the server.
 2. If a new version is available, it downloads and extracts it, overwriting the previous installation.
 
-
-## Uninstall
-
-Removes all files and links created by the script.
+#### `uninstall`
+Removes all files and links created by the script. This does not remove your browser profiles.
 
 ```sh
 sudo setup-firefox-dev.sh uninstall
 ```
-
+**Process:**
 1. Deletes the installation directory: `/opt/firefox-dev`.
 2. Deletes the symbolic link: `/usr/local/bin/firefox-dev`.
 3. Deletes the desktop entry file: `/usr/share/applications/Firefox-dev.desktop`.
+
+## License
+
+This project is licensed under the MIT License.
 
 <br/>
