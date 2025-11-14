@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 
+set -o nounset
+
 NAME=$(basename "$0")
-VERSION="v0.4.2"
+VERSION="v0.5.0"
 readonly NAME VERSION
 
 URL="https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64&lang=en-US"
@@ -11,6 +13,77 @@ SYMLINK_FILE="/usr/local/bin/firefox-dev"
 DESKTOP_FILE="/usr/share/applications/Firefox-dev.desktop"
 VERSION_FILE="${TARGET_DIR}/.version"
 readonly URL TARGET_DIR SYMLINK_FILE DESKTOP_FILE VERSION_FILE
+
+USAGE_GLOBAL=$(cat <<HELP
+Usage: $NAME <subcommand> [options]
+
+Descriptions:
+  This script provides a simple command-line interface to manage
+  the lifecycle of Firefox Developer Edition on Linux systems.
+  It automates the process of installing the latest version, checking
+  for and applying updates, and performing a clean uninstallation.
+
+Subcommands:
+  install    Install Firefox developer edition.
+  update     Update if a new version is available.
+  uninstall  Uninstall Firefox developer edition.
+  help       Show this help message and exit.
+  version    Show this script version and exit.
+
+Source and license:
+  https://github.com/saihon/setup-firefox-dev-sh
+  This scripts is licensed under the MIT License.
+HELP
+)
+
+USAGE_INSTALL=$(cat <<HELP
+Usage: $NAME install [options]
+
+Descriptions:
+  Downloads the latest Firefox Developer Edition from Mozilla,
+  extracts it to the $TARGET_DIR directory, and creates a
+  command-line launcher (symlink) and a desktop application entry.
+
+Options:
+  -v, --version  Show current installed version (from the .version file).
+  -h, --help     Show install help message and exit.
+HELP
+)
+
+USAGE_UPDATE=$(cat <<HELP
+Usage: $NAME update [options]
+
+Descriptions:
+  Checks if a newer version of Firefox Developer Edition is available.
+  If an update is found, it automatically downloads and installs it,
+  replacing the current application files.
+  To force an update or reinstall, please use the 'install' command.
+
+Options:
+  -c, --check    Check for available updates (does not perform update).
+  -h, --help     Show update help message and exit.
+HELP
+)
+
+USAGE_UNINSTALL=$(cat <<HELP
+Usage: $NAME uninstall [options]
+
+  Removes Firefox Developer Edition, including application files,
+  the symbolic link, and the desktop entry.
+  This does not remove your browser profiles (e.g., in ~/.mozilla).
+HELP
+)
+readonly USAGE_GLOBAL USAGE_INSTALL USAGE_UPDATE USAGE_UNINSTALL
+
+show_help() {
+    printf "\n%s\n\n" "$1"
+    exit 0
+}
+
+show_version() {
+    echo "$NAME: $VERSION"
+    exit 0
+}
 
 output_error_exit() {
     echo "Error: $1." 1>&2
@@ -174,10 +247,20 @@ run_install() {
     exit 0
 }
 
+show_current_installed_version() {
+    installed_version=$(get_installed_version)
+    if [[ "$installed_version" == "0" ]]; then
+        echo "Firefox Developer Edition is not installed."
+    else
+        printf "Currently installed version: %s\n" "$installed_version"
+    fi
+    exit 0
+}
+
 run_update() {
     installed_version=$(get_installed_version)
     if [[ "$installed_version" == "0" ]]; then
-        output_error_exit "Could not determine installed version. The app may not have been installed by this script. Use 'install' to re-install, or '--force-update' to overwrite."
+        output_error_exit "Firefox does not appear to be installed by this script. Please use the 'install' command first."
     fi
 
     printf "Currently installed version: %s\n" "$installed_version"
@@ -199,25 +282,11 @@ run_update() {
     exit 0
 }
 
-run_update_force() {
-    printf "Forcing update, skipping version check.\n"
-    printf "Fetching latest version information...\n"
-    latest_info=$(get_latest_version_info)
-    if [[ $? -ne 0 ]]; then
-        output_error_exit "Could not get latest version info"
-    fi
-    IFS='|' read -r latest_version latest_filename latest_url <<<"$latest_info"
-
-    perform_update "$latest_version" "$latest_filename"
-    printf "\nForced update to version %s successful.\n" "$latest_version"
-    exit 0
-}
-
 run_update_check() {
     local installed_version
     installed_version=$(get_installed_version)
     if [[ "$installed_version" == "0" ]]; then
-        output_error_exit "Could not determine installed version. The app may not have been installed by this script. Use 'install' to re-install, or '--force-update' to overwrite."
+        output_error_exit "Firefox does not appear to be installed by this script. Please use the 'install' command first."
     fi
 
     printf "Currently installed version: %s.\n" "$installed_version"
@@ -251,58 +320,162 @@ run_uninstall() {
     exit 0
 }
 
-show_version_info() {
-    echo "$NAME: $VERSION"
-    exit 0
+split_by_equals() {
+    # This function modifies variables in the caller's scope:
+    # OPTION, VALUE
+    IFS='=' read -ra ARRAY <<<"$1"
+    OPTION="${ARRAY[0]}"
+    if [[ -n "${ARRAY[1]+_}" ]]; then # Check if the second element is set (even if empty)
+        VALUE="${ARRAY[1]}"
+        is_next_arg=false
+    fi
 }
 
-show_help() {
-    printf "\nUsage: %s [options] [arguments]\n" "$NAME"
-    printf "\nOptions:\n"
-    printf "  -i, --install        Install Firefox developer edition.\n"
-    printf "  -u, --update         Update if a new version is available.\n"
-    printf "      --force-update   Force update without version check.\n"
-    printf "      --check-update   Check for available updates.\n"
-    printf "      --uninstall      Uninstall Firefox developer edition.\n"
-    printf "  -v, --version        Output version information and exit.\n"
-    printf "  -h, --help           Display this help and exit.\n"
-    printf "\nNote:\n"
-    printf "  Options can also be specified without the '--' prefix.\n"
-    printf "  (e.g., 'install' instead of '--install')\n"
-    printf "\n"
-    exit 0
+validate_option() {
+    local opt="$1"
+    local pattern_short="$2"
+    local pattern_long="$3"
+
+    if [[ "$opt" =~ ^-([^-]+|$) ]] && [[ ! "$opt" =~ ^-[$pattern_short]+$ ]]; then
+        output_error_exit "invalid option: '$opt'"
+    fi
+    if [[ "$opt" =~ ^-- ]] && [[ ! "$opt" =~ ^--($pattern_long)$ ]]; then
+        output_error_exit "unrecognized option: '$opt'"
+    fi
 }
 
-case "$1" in
--i | --install | install)
-    check_dependencies
-    ensure_root
-    run_install
+validate_required_option() {
+    local opt="$1"
+    local val="$2"
+    local is_next="$3"
+
+    if [[ -z "$val" ]]; then
+        output_error_exit "option '$opt' requires a value"
+    fi
+    # If the value comes from the next argument, it must not be an option itself.
+    if "$is_next" && [[ "$val" =~ ^- ]]; then
+        output_error_exit "option '$opt' requires a value"
+    fi
+}
+
+parse_arguments() {
+    local USAGE=""
+    local PATTERN_SHORT=""
+    local PATTERN_LONG=""
+
+    case "$SUBCMD" in
+    install)
+        USAGE="$USAGE_INSTALL"
+        PATTERN_SHORT="vh"
+        PATTERN_LONG="version|help"
+        ;;
+    update)
+        USAGE="$USAGE_UPDATE"
+        PATTERN_SHORT="ch"
+        PATTERN_LONG="check|help"
+        ;;
+    uninstall)
+        USAGE="$USAGE_UNINSTALL"
+        PATTERN_SHORT="h"
+        PATTERN_LONG="help"
+        ;;
+    esac
+
+    while (($# > 0)); do
+        case "$1" in
+        -*)
+            local is_next_arg=true
+            local shift_next=false
+            local OPTION="$1"
+            # Safely get the next argument, or empty string if it doesn't exist.
+            local VALUE="${2-}"
+            split_by_equals "$OPTION"
+            validate_option "$OPTION" "$PATTERN_SHORT" "$PATTERN_LONG"
+
+            if [[ "$OPTION" =~ ^(-[^-]*h|--help)$ ]]; then
+                show_help "$USAGE"
+            fi
+
+            case "$SUBCMD" in
+            install)
+                if [[ "$OPTION" =~ ^(-[^-]*v|--version)$ ]]; then
+                    OPT_INSTALL_SHOW_VERSION=true
+                fi
+                ;;
+            update)
+                if [[ "$OPTION" =~ ^(-[^-]*c|--check)$ ]]; then
+                    OPT_UPDATE_CHECK=true
+                fi
+                ;;
+            uninstall)
+                # No options for uninstall
+                ;;
+            esac
+
+            "$shift_next" && shift
+            shift
+            ;;
+        *)
+            ((++ARGC))
+            ARGS+=("$1")
+            shift
+            ;;
+        esac
+    done
+}
+
+if (($# == 0)); then
+    show_help "$USAGE_GLOBAL"
+fi
+
+readonly SUBCMD="$1"
+shift
+
+declare -i ARGC=0
+declare -a ARGS=()
+
+OPT_UPDATE_CHECK=""
+OPT_INSTALL_SHOW_VERSION=""
+
+case "$SUBCMD" in
+install | update | uninstall)
+    parse_arguments "$@"
     ;;
--u | --update | update)
-    check_dependencies
-    ensure_root
-    run_update
+version)
+    show_version
     ;;
---force-update | force-update)
-    check_dependencies
-    ensure_root
-    run_update_force
-    ;;
---check-update | check-update)
-    check_dependencies
-    ensure_root
-    run_update_check
-    ;;
---uninstall | uninstall)
-    check_dependencies
-    ensure_root
-    run_uninstall
-    ;;
--v | --version | version)
-    show_version_info
+help)
+    show_help "$USAGE_GLOBAL"
     ;;
 *)
-    show_help
+    printf "Error: %s is not a subcommand.\n" "$SUBCMD" >&2
+    show_help "$USAGE_GLOBAL"
+    ;;
+esac
+
+readonly OPT_UPDATE_CHECK OPT_INSTALL_SHOW_VERSION
+
+check_dependencies
+
+case "$SUBCMD" in
+install)
+    if [ -n "$OPT_INSTALL_SHOW_VERSION" ]; then
+        show_current_installed_version
+    else
+        ensure_root
+        run_install
+    fi
+    ;;
+update)
+    if [ -n "$OPT_UPDATE_CHECK" ]; then
+        run_update_check
+    else
+        ensure_root
+        run_update
+    fi
+    ;;
+uninstall)
+    ensure_root
+    run_uninstall
     ;;
 esac
