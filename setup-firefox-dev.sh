@@ -3,16 +3,17 @@
 set -o nounset
 
 NAME=$(basename "$0")
-VERSION="v0.5.0"
+VERSION="v0.6.0"
 readonly NAME VERSION
 
-URL="https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64&lang=en-US"
+BASE_URL="https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64"
+DEFAULT_LANG="en-US"
 TARGET_DIR="/opt/firefox-dev"
 ARCHIVE_FILE="" # Will be set by download function
 SYMLINK_FILE="/usr/local/bin/firefox-dev"
 DESKTOP_FILE="/usr/share/applications/Firefox-dev.desktop"
 VERSION_FILE="${TARGET_DIR}/.version"
-readonly URL TARGET_DIR SYMLINK_FILE DESKTOP_FILE VERSION_FILE
+readonly BASE_URL DEFAULT_LANG TARGET_DIR SYMLINK_FILE DESKTOP_FILE VERSION_FILE
 
 USAGE_GLOBAL=$(cat <<HELP
 Usage: $NAME <subcommand> [options]
@@ -45,8 +46,9 @@ Descriptions:
   command-line launcher (symlink) and a desktop application entry.
 
 Options:
-  -v, --version  Show current installed version (from the .version file).
-  -h, --help     Show install help message and exit.
+  -l, --lang <LANG>  Specify language (e.g., ja, de). Defaults to $DEFAULT_LANG or last used.
+  -v, --version      Show current installed version (from the .version file).
+  -h, --help         Show install help message and exit.
 HELP
 )
 
@@ -60,8 +62,10 @@ Descriptions:
   To force an update or reinstall, please use the 'install' command.
 
 Options:
-  -c, --check    Check for available updates (does not perform update).
-  -h, --help     Show update help message and exit.
+  -c, --check        Check for available updates (does not perform update).
+  -l, --lang <LANG>  Specify language (e.g., ja, de). Defaults to $DEFAULT_LANG or last used.
+                     Defaults to the installed language.
+  -h, --help         Show update help message and exit.
 HELP
 )
 
@@ -109,19 +113,24 @@ cleanup() {
 trap cleanup EXIT
 
 get_latest_version_info() {
+    local url_with_lang="$1"
     # Get the final redirected URL's filename without downloading.
     # The filename contains the version string.
     # Returns "LATEST_VERSION|LATEST_FILENAME|LATEST_URL"
     local latest_filename
     local latest_url
     local output
-    output=$(wget --spider -S "$URL" 2>&1)
+    output=$(wget --spider -S "$url_with_lang" 2>&1)
     if [[ $? -ne 0 ]]; then
         echo "$output" >&2
         return 1
     fi
     # Get the final redirected URL from the 'Location' header.
-    latest_url=$(echo "$output" | grep -oP 'Location: \K.*' | tail -n 1 | tr -d '\r')
+    # The sed command does three things:
+    # 1. Removes the "Location: " prefix.
+    # 2. Removes everything after the first space (to get rid of "[following]").
+    # 3. Removes the trailing carriage return character.
+    latest_url=$(echo "$output" | grep '^Location: ' | tail -n 1 | sed -e 's/Location: //' -e 's/ .*//' -e 's/\r$//')
 
     # Extract the filename from the URL using shell parameter expansion,
     # ensuring any query parameters (e.g., ?token=...) are removed first.
@@ -141,14 +150,16 @@ get_latest_version_info() {
 
 download() {
     # Downloads a specific file now
-    local filename="$1"
-    printf "Downloading %s...\n" "$filename"
+    local url_to_download="$1"
+    local filename="$2"
+    local lang="$3"
+    printf "Downloading %s (%s)...\n" "$filename" "$lang"
 
     # Set the full path for the archive file.
     ARCHIVE_FILE="/tmp/${filename}"
     # Download from the URL and save it to the specified path.
-    if ! wget -O "$ARCHIVE_FILE" "$URL" >/dev/null 2>&1; then
-        output_error_exit "Failed to download from $URL"
+    if ! wget -q -O "$ARCHIVE_FILE" "$url_to_download"; then
+        output_error_exit "Failed to download from $url_to_download"
     fi
 }
 
@@ -204,38 +215,66 @@ ensure_root() {
 
 get_installed_version() {
     if [[ -f "$VERSION_FILE" ]]; then
-        cat "$VERSION_FILE"
+        # Returns version|lang
+        cat "$VERSION_FILE" | tr -d '\n'
     else
-        echo "0" # Not installed
+        echo "0|${DEFAULT_LANG}" # Not installed, return version 0 and default lang
     fi
 }
 
 save_version_info() {
     local version_to_save="$1"
+    local lang_to_save="$2"
     # Ensure parent directory exists
     mkdir -p "$TARGET_DIR"
-    echo "$version_to_save" >"$VERSION_FILE"
+    echo "${version_to_save}|${lang_to_save}" >"$VERSION_FILE"
+}
+
+get_target_lang() {
+    # Determine the language to use based on priority:
+    # 1. --lang option from command line (OPT_LANG)
+    # 2. Language from .version file (installed_lang)
+    # 3. Default language (DEFAULT_LANG)
+    local installed_lang="$1"
+
+    if [[ -n "$OPT_LANG" ]]; then
+        echo "$OPT_LANG"
+    elif [[ "$installed_lang" != "$DEFAULT_LANG" && -n "$installed_lang" ]]; then
+        echo "$installed_lang"
+    else
+        echo "$DEFAULT_LANG"
+    fi
 }
 
 perform_update() {
     local latest_version="$1"
     local latest_filename="$2"
+    local latest_url="$3"
+    local lang="$4"
 
-    download "$latest_filename"
+    download "$latest_url" "$latest_filename" "$lang"
     printf "Extracting archive: %s\n" "$ARCHIVE_FILE"
     if ! expand_archive_to_target_directory; then output_error_exit "Failed to extract archive"; fi
-    save_version_info "$latest_version"
+    save_version_info "$latest_version" "$lang"
 }
 
 run_install() {
+    local installed_info
+    installed_info=$(get_installed_version)
+    local _ # installed_version is not used here
+    local installed_lang
+    IFS='|' read -r _ installed_lang <<<"$installed_info"
+    local target_lang
+    target_lang=$(get_target_lang "$installed_lang")
+
     printf "Fetching latest version information...\n"
-    latest_info=$(get_latest_version_info)
+    latest_info=$(get_latest_version_info "${BASE_URL}&lang=${target_lang}")
     if [[ $? -ne 0 ]]; then
         output_error_exit "Could not get latest version info"
     fi
     IFS='|' read -r latest_version latest_filename latest_url <<<"$latest_info"
 
-    perform_update "$latest_version" "$latest_filename"
+    perform_update "$latest_version" "$latest_filename" "$latest_url" "$target_lang"
 
     printf "Creating symbolic link: %s\n" "$SYMLINK_FILE"
     if ! create_symlink; then output_error_exit "Failed to create symbolic link"; fi
@@ -248,24 +287,35 @@ run_install() {
 }
 
 show_current_installed_version() {
-    installed_version=$(get_installed_version)
+    local installed_info
+    installed_info=$(get_installed_version)
+    local installed_version
+    local installed_lang
+    IFS='|' read -r installed_version installed_lang <<<"$installed_info"
+
     if [[ "$installed_version" == "0" ]]; then
         echo "Firefox Developer Edition is not installed."
     else
-        printf "Currently installed version: %s\n" "$installed_version"
+        printf "Currently installed version: %s (%s)\n" "$installed_version" "$installed_lang"
     fi
     exit 0
 }
 
 run_update() {
-    installed_version=$(get_installed_version)
+    local installed_info
+    installed_info=$(get_installed_version)
+    local installed_version
+    local installed_lang
+    IFS='|' read -r installed_version installed_lang <<<"$installed_info"
+
     if [[ "$installed_version" == "0" ]]; then
         output_error_exit "Firefox does not appear to be installed by this script. Please use the 'install' command first."
     fi
 
-    printf "Currently installed version: %s\n" "$installed_version"
+    printf "Currently installed version: %s (%s)\n" "$installed_version" "$installed_lang"
+    local target_lang=$(get_target_lang "$installed_lang")
     printf "Fetching latest version information...\n"
-    latest_info=$(get_latest_version_info)
+    latest_info=$(get_latest_version_info "${BASE_URL}&lang=${target_lang}")
     if [[ $? -ne 0 ]]; then
         output_error_exit "Could not get latest version info"
     fi
@@ -277,22 +327,30 @@ run_update() {
     fi
 
     printf "New version available: %s\n" "$latest_version"
-    perform_update "$latest_version" "$latest_filename"
+    perform_update "$latest_version" "$latest_filename" "$latest_url" "$target_lang"
     printf "\nUpdate to version %s successful.\n" "$latest_version"
     exit 0
 }
 
 run_update_check() {
+    local installed_info
+    installed_info=$(get_installed_version)
     local installed_version
-    installed_version=$(get_installed_version)
+    local installed_lang
+    IFS='|' read -r installed_version installed_lang <<<"$installed_info"
+
     if [[ "$installed_version" == "0" ]]; then
         output_error_exit "Firefox does not appear to be installed by this script. Please use the 'install' command first."
     fi
 
-    printf "Currently installed version: %s.\n" "$installed_version"
+    printf "Currently installed version: %s (%s).\n" "$installed_version" "$installed_lang"
+
+    local target_lang
+    target_lang=$(get_target_lang "$installed_lang")
+
     printf "Fetching latest version information...\n"
     local latest_info
-    latest_info=$(get_latest_version_info)
+    latest_info=$(get_latest_version_info "${BASE_URL}&lang=${target_lang}")
     if [[ $? -ne 0 ]]; then
         output_error_exit "Could not get latest version info"
     fi
@@ -366,13 +424,13 @@ parse_arguments() {
     case "$SUBCMD" in
     install)
         USAGE="$USAGE_INSTALL"
-        PATTERN_SHORT="vh"
-        PATTERN_LONG="version|help"
+        PATTERN_SHORT="vhl"
+        PATTERN_LONG="version|help|lang"
         ;;
     update)
         USAGE="$USAGE_UPDATE"
-        PATTERN_SHORT="ch"
-        PATTERN_LONG="check|help"
+        PATTERN_SHORT="chl"
+        PATTERN_LONG="check|help|lang"
         ;;
     uninstall)
         USAGE="$USAGE_UNINSTALL"
@@ -384,8 +442,8 @@ parse_arguments() {
     while (($# > 0)); do
         case "$1" in
         -*)
-            local is_next_arg=true
-            local shift_next=false
+            local is_next_arg=true # Assume value is next arg
+            local shift_next=false # Don't shift next arg by default
             local OPTION="$1"
             # Safely get the next argument, or empty string if it doesn't exist.
             local VALUE="${2-}"
@@ -396,23 +454,24 @@ parse_arguments() {
                 show_help "$USAGE"
             fi
 
-            case "$SUBCMD" in
-            install)
-                if [[ "$OPTION" =~ ^(-[^-]*v|--version)$ ]]; then
-                    OPT_INSTALL_SHOW_VERSION=true
-                fi
-                ;;
-            update)
-                if [[ "$OPTION" =~ ^(-[^-]*c|--check)$ ]]; then
-                    OPT_UPDATE_CHECK=true
-                fi
-                ;;
-            uninstall)
-                # No options for uninstall
-                ;;
-            esac
+            # Set flag for --lang option (valid for 'install' and 'update')
+            if [[ "$OPTION" =~ ^(-[^-]*l|--lang)$ ]]; then
+                validate_required_option "$OPTION" "$VALUE" "$is_next_arg"
+                OPT_LANG="$VALUE"
+                shift_next=true
+            fi
 
-            "$shift_next" && shift
+            # Set flag for --version option (only valid for 'install')
+            if [[ "$OPTION" =~ ^(-[^-]*v|--version)$ ]]; then
+                OPT_INSTALL_SHOW_VERSION=true
+            fi
+
+            # Set flag for --check option (only valid for 'update')
+            if [[ "$OPTION" =~ ^(-[^-]*c|--check)$ ]]; then
+                OPT_UPDATE_CHECK=true
+            fi
+
+            if "$is_next_arg" && "$shift_next"; then shift; fi
             shift
             ;;
         *)
@@ -436,6 +495,7 @@ declare -a ARGS=()
 
 OPT_UPDATE_CHECK=""
 OPT_INSTALL_SHOW_VERSION=""
+OPT_LANG=""
 
 case "$SUBCMD" in
 install | update | uninstall)
@@ -453,7 +513,7 @@ help)
     ;;
 esac
 
-readonly OPT_UPDATE_CHECK OPT_INSTALL_SHOW_VERSION
+readonly OPT_UPDATE_CHECK OPT_INSTALL_SHOW_VERSION OPT_LANG
 
 check_dependencies
 
