@@ -3,7 +3,7 @@
 set -o nounset
 
 NAME=$(basename "$0")
-VERSION="v0.6.0"
+VERSION="v0.7.0"
 readonly NAME VERSION
 
 BASE_URL="https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64"
@@ -107,6 +107,7 @@ check_dependencies() {
 cleanup() {
     if [[ -n "$ARCHIVE_FILE" && -f "$ARCHIVE_FILE" ]]; then
         rm -f "$ARCHIVE_FILE"
+        tput cnorm # Restore cursor visibility
     fi
 }
 
@@ -153,14 +154,39 @@ download() {
     local url_to_download="$1"
     local filename="$2"
     local lang="$3"
-    printf "Downloading %s (%s)...\n" "$filename" "$lang"
-
-    # Set the full path for the archive file.
+    printf "Downloading %s (%s) " "$filename" "$lang"
     ARCHIVE_FILE="/tmp/${filename}"
+
+    # Hide cursor for clean animation
+    tput civis
+
+    # Spinner animation
+    local spin_chars="/-\\|"
+    (
+        while true; do
+            for ((i = 0; i < ${#spin_chars}; i++)); do
+                # \r: return to line start, \e[K: clear to end of line
+                printf "\r\e[KDownloading %s (%s) [%s]" "$filename" "$lang" "${spin_chars:$i:1}"
+                sleep 0.1
+            done
+        done
+    ) &
+    local spinner_pid=$!
+
     # Download from the URL and save it to the specified path.
-    if ! wget -q -O "$ARCHIVE_FILE" "$url_to_download"; then
+    if wget -q -O "$ARCHIVE_FILE" "$url_to_download"; then
+        # Success
+        kill "$spinner_pid" &>/dev/null
+        wait "$spinner_pid" 2>/dev/null
+        printf "\r\e[KDownloading %s (%s) [DONE]\n" "$filename" "$lang"
+    else
+        # Failure
+        kill "$spinner_pid" &>/dev/null
+        wait "$spinner_pid" 2>/dev/null
+        printf "\r\e[K\n" # Clear line and add a newline
         output_error_exit "Failed to download from $url_to_download"
     fi
+    tput cnorm # Restore cursor
 }
 
 expand_archive_to_target_directory() {
