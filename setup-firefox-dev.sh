@@ -3,7 +3,7 @@
 set -o nounset
 
 NAME=$(basename "$0")
-VERSION="v0.8.0"
+VERSION="v0.8.1"
 readonly NAME VERSION
 
 BASE_URL="https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64"
@@ -15,7 +15,8 @@ DESKTOP_FILE="/usr/share/applications/Firefox-dev.desktop"
 VERSION_FILE="${TARGET_DIR}/.version"
 readonly BASE_URL DEFAULT_LANG TARGET_DIR SYMLINK_FILE DESKTOP_FILE VERSION_FILE
 
-USAGE_GLOBAL=$(cat <<HELP
+USAGE_GLOBAL=$(
+    cat <<HELP
 Usage: $NAME <subcommand> [options]
 
 Descriptions:
@@ -38,7 +39,8 @@ Source and license:
 HELP
 )
 
-USAGE_INSTALL=$(cat <<HELP
+USAGE_INSTALL=$(
+    cat <<HELP
 Usage: $NAME install [options]
 
 Descriptions:
@@ -52,7 +54,8 @@ Options:
 HELP
 )
 
-USAGE_UPDATE=$(cat <<HELP
+USAGE_UPDATE=$(
+    cat <<HELP
 Usage: $NAME update [options]
 
 Descriptions:
@@ -69,7 +72,8 @@ Options:
 HELP
 )
 
-USAGE_UNINSTALL=$(cat <<HELP
+USAGE_UNINSTALL=$(
+    cat <<HELP
 Usage: $NAME uninstall [options]
 
 Descriptions:
@@ -79,7 +83,8 @@ Descriptions:
 HELP
 )
 
-USAGE_STATUS=$(cat <<HELP
+USAGE_STATUS=$(
+    cat <<HELP
 Usage: $NAME status [options]
 
 Descriptions:
@@ -445,7 +450,7 @@ show_current_installed_version() {
     local installed_lang
     IFS='|' read -r installed_version installed_lang <<<"$installed_info"
 
-    if [[ "$installed_version" != "0" ]]; then
+    if [[ "$installed_version" == "0" ]]; then
         echo "Not installed by this script. Please run the 'install' command first."
     else
         printf "Currentry installed version and language: %s (%s)\n" "$installed_version" "$installed_lang"
