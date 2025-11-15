@@ -138,6 +138,8 @@ get_latest_version_info() {
     local latest_filename
     local latest_url
     local output
+    # Set LC_ALL=C to ensure wget's output (e.g., "Location: ") is not localized,
+    # allowing for consistent parsing with grep and sed.
     output=$(LC_ALL=C wget --spider -S "$url_with_lang" 2>&1)
     if [[ $? -ne 0 ]]; then
         echo "$output" >&2
