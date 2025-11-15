@@ -3,7 +3,7 @@
 set -o nounset
 
 NAME=$(basename "$0")
-VERSION="v0.7.2"
+VERSION="v0.8.0"
 readonly NAME VERSION
 
 BASE_URL="https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64"
@@ -28,6 +28,7 @@ Subcommands:
   install    Install Firefox developer edition.
   update     Update if a new version is available.
   uninstall  Uninstall Firefox developer edition.
+  status     Check the status of the installation.
   help       Show this help message and exit.
   version    Show this script version and exit.
 
@@ -47,7 +48,6 @@ Descriptions:
 
 Options:
   -l, --lang <LANG>  Specify language (e.g., ja, de). Defaults to $DEFAULT_LANG or last used.
-  -v, --version      Show current installed version (from the .version file).
   -h, --help         Show install help message and exit.
 HELP
 )
@@ -72,12 +72,24 @@ HELP
 USAGE_UNINSTALL=$(cat <<HELP
 Usage: $NAME uninstall [options]
 
+Descriptions:
   Removes Firefox Developer Edition, including application files,
   the symbolic link, and the desktop entry.
   This does not remove your browser profiles (e.g., in ~/.mozilla).
 HELP
 )
-readonly USAGE_GLOBAL USAGE_INSTALL USAGE_UPDATE USAGE_UNINSTALL
+
+USAGE_STATUS=$(cat <<HELP
+Usage: $NAME status [options]
+
+Descriptions:
+  Verifies the installation of Firefox Developer Edition.
+  It checks for the existence of necessary files and directories,
+  displays current installed version information (from the .version file),
+  and validates the symbolic link and desktop entry.
+HELP
+)
+readonly USAGE_GLOBAL USAGE_INSTALL USAGE_UPDATE USAGE_UNINSTALL USAGE_STATUS
 
 show_help() {
     printf "\n%s\n\n" "$1"
@@ -312,21 +324,6 @@ run_install() {
     exit 0
 }
 
-show_current_installed_version() {
-    local installed_info
-    installed_info=$(get_installed_version)
-    local installed_version
-    local installed_lang
-    IFS='|' read -r installed_version installed_lang <<<"$installed_info"
-
-    if [[ "$installed_version" == "0" ]]; then
-        echo "Firefox Developer Edition is not installed."
-    else
-        printf "Currently installed version: %s (%s)\n" "$installed_version" "$installed_lang"
-    fi
-    exit 0
-}
-
 run_update() {
     local installed_info
     installed_info=$(get_installed_version)
@@ -404,6 +401,74 @@ run_uninstall() {
     exit 0
 }
 
+check_target_directory() {
+    printf "Target Directory: %s\n" "$TARGET_DIR"
+    if [[ -d "$TARGET_DIR" ]]; then
+        printf "   ... OK\n"
+        return 0
+    fi
+    printf "   ... Not Found (ERROR)\n"
+    return 1
+}
+
+check_symlink() {
+    printf "Symbolic Link: %s\n" "$SYMLINK_FILE"
+    if [[ -L "$SYMLINK_FILE" ]]; then
+        local link_target
+        link_target=$(readlink "$SYMLINK_FILE")
+        if [[ "$link_target" == "${TARGET_DIR}/firefox" ]]; then
+            printf "   ... OK (points to %s)\n" "$link_target"
+            return 0
+        else
+            printf "   ... Points to wrong location: %s (ERROR)\n" "$link_target"
+            return 1
+        fi
+    fi
+    printf "   ... Not Found (ERROR)\n"
+    return 1
+}
+
+check_desktop_file() {
+    printf "Desktop File: %s\n" "$DESKTOP_FILE"
+    if [[ -f "$DESKTOP_FILE" ]]; then
+        printf "   ... OK\n"
+        return 0
+    fi
+    printf "   ... Not Found (WARNING)\n"
+    return 1
+}
+
+show_current_installed_version() {
+    local installed_info
+    installed_info=$(get_installed_version)
+    local installed_version
+    local installed_lang
+    IFS='|' read -r installed_version installed_lang <<<"$installed_info"
+
+    if [[ "$installed_version" != "0" ]]; then
+        echo "Not installed by this script. Please run the 'install' command first."
+    else
+        printf "Currentry installed version and language: %s (%s)\n" "$installed_version" "$installed_lang"
+    fi
+}
+
+run_status() {
+    printf "Checking Firefox Developer Edition installation status...\n\n"
+    show_current_installed_version
+    printf "\n"
+    local all_ok=true
+    if ! check_target_directory; then all_ok=false; fi
+    if ! check_symlink; then all_ok=false; fi
+    if ! check_desktop_file; then all_ok=false; fi
+    printf "\n"
+    if "$all_ok"; then
+        printf "Installation appears to be OK.\n"
+    else
+        printf "Found one or more issues.\n"
+    fi
+    exit 0
+}
+
 split_by_equals() {
     # This function modifies variables in the caller's scope:
     # OPTION, VALUE
@@ -463,6 +528,11 @@ parse_arguments() {
         PATTERN_SHORT="h"
         PATTERN_LONG="help"
         ;;
+    status)
+        USAGE="$USAGE_STATUS"
+        PATTERN_SHORT="h"
+        PATTERN_LONG="help"
+        ;;
     esac
 
     while (($# > 0)); do
@@ -486,11 +556,6 @@ parse_arguments() {
                 validate_required_option "$OPTION" "$VALUE" "$is_next_arg"
                 OPT_LANG="$VALUE"
                 shift_next=true
-            fi
-
-            # Set flag for --version option (only valid for 'install')
-            if [[ "$OPTION" =~ ^(-[[:alnum:]]*v|--version$) ]]; then
-                OPT_INSTALL_SHOW_VERSION=true
             fi
 
             # Set flag for --check option (only valid for 'update')
@@ -521,11 +586,10 @@ declare -i ARGC=0
 declare -a ARGS=()
 
 OPT_UPDATE_CHECK=""
-OPT_INSTALL_SHOW_VERSION=""
 OPT_LANG=""
 
 case "$SUBCMD" in
-install | update | uninstall)
+install | update | uninstall | status)
     parse_arguments "$@"
     ;;
 version)
@@ -540,18 +604,14 @@ help)
     ;;
 esac
 
-readonly OPT_UPDATE_CHECK OPT_INSTALL_SHOW_VERSION OPT_LANG
+readonly OPT_UPDATE_CHECK OPT_LANG
 
 check_dependencies
 
 case "$SUBCMD" in
 install)
-    if [ -n "$OPT_INSTALL_SHOW_VERSION" ]; then
-        show_current_installed_version
-    else
-        ensure_root
-        run_install
-    fi
+    ensure_root
+    run_install
     ;;
 update)
     if [ -n "$OPT_UPDATE_CHECK" ]; then
@@ -564,5 +624,8 @@ update)
 uninstall)
     ensure_root
     run_uninstall
+    ;;
+status)
+    run_status
     ;;
 esac
