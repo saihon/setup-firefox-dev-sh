@@ -3,7 +3,7 @@
 set -o nounset
 
 NAME=$(basename "$0")
-VERSION="v0.7.1"
+VERSION="v0.7.2"
 readonly NAME VERSION
 
 BASE_URL="https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64"
@@ -121,7 +121,7 @@ get_latest_version_info() {
     local latest_filename
     local latest_url
     local output
-    output=$(wget --spider -S "$url_with_lang" 2>&1)
+    output=$(LC_ALL=C wget --spider -S "$url_with_lang" 2>&1)
     if [[ $? -ne 0 ]]; then
         echo "$output" >&2
         return 1
