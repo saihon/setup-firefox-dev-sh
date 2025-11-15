@@ -3,7 +3,7 @@
 set -o nounset
 
 NAME=$(basename "$0")
-VERSION="v0.7.0"
+VERSION="v0.7.1"
 readonly NAME VERSION
 
 BASE_URL="https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64"
@@ -476,24 +476,25 @@ parse_arguments() {
             split_by_equals "$OPTION"
             validate_option "$OPTION" "$PATTERN_SHORT" "$PATTERN_LONG"
 
-            if [[ "$OPTION" =~ ^(-[^-]*h|--help)$ ]]; then
+            # This $ is correctly placed, that is to allow multiple short options (such as -abc) to be specified.
+            if [[ "$OPTION" =~ ^(-[[:alnum:]]*h|--help$) ]]; then
                 show_help "$USAGE"
             fi
 
             # Set flag for --lang option (valid for 'install' and 'update')
-            if [[ "$OPTION" =~ ^(-[^-]*l|--lang)$ ]]; then
+            if [[ "$OPTION" =~ ^(-[[:alnum:]]*l|--lang$) ]]; then
                 validate_required_option "$OPTION" "$VALUE" "$is_next_arg"
                 OPT_LANG="$VALUE"
                 shift_next=true
             fi
 
             # Set flag for --version option (only valid for 'install')
-            if [[ "$OPTION" =~ ^(-[^-]*v|--version)$ ]]; then
+            if [[ "$OPTION" =~ ^(-[[:alnum:]]*v|--version$) ]]; then
                 OPT_INSTALL_SHOW_VERSION=true
             fi
 
             # Set flag for --check option (only valid for 'update')
-            if [[ "$OPTION" =~ ^(-[^-]*c|--check)$ ]]; then
+            if [[ "$OPTION" =~ ^(-[[:alnum:]]*c|--check$) ]]; then
                 OPT_UPDATE_CHECK=true
             fi
 
