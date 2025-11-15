@@ -34,6 +34,14 @@ setup-firefox-dev.sh <subcommand> [options]
 
 ### Subcommands
 
+#### `help` and `version`
+Show help message or this script version information.
+
+```sh
+setup-firefox-dev.sh help
+setup-firefox-dev.sh version
+```
+
 #### `install`
 Installs or reinstalls the latest Firefox Developer Edition.
 
@@ -42,7 +50,6 @@ sudo setup-firefox-dev.sh install
 ```
 **Options:**
 *   `-l, --lang <LANG>`: Specify the language for installation (e.g., `ja`, `de`). The chosen language will be remembered for future updates.
-*   `-v, --version`: Show the currently installed version and exit. This option does not require sudo.
 
 **Process:**
 1. Downloads the latest `.tar.bz2` archive to the `/tmp` directory.
@@ -75,6 +82,19 @@ sudo setup-firefox-dev.sh uninstall
 1. Deletes the installation directory: `/opt/firefox-dev`.
 2. Deletes the symbolic link: `/usr/local/bin/firefox-dev`.
 3. Deletes the desktop entry file: `/usr/share/applications/Firefox-dev.desktop`.
+
+
+#### status 
+Verifies the installation and displays the current status. This command does not require sudo.
+
+```sh
+setup-firefox-dev.sh status
+```
+**Process:**
+1. Displays the currently installed version and language. 
+2. Checks for the existence of the installation directory (/opt/firefox-dev).
+3. Validates the symbolic link (/usr/local/bin/firefox-dev).
+4. Checks for the existence of the desktop entry file (/usr/share/applications/Firefox-dev.desktop).
 
 ## License
 
