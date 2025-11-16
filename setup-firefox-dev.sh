@@ -3,7 +3,7 @@
 set -o nounset
 
 NAME=$(basename "$0")
-VERSION="v0.8.1"
+VERSION="v0.8.2"
 readonly NAME VERSION
 
 BASE_URL="https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64"
@@ -522,8 +522,8 @@ parse_arguments() {
     case "$SUBCMD" in
     install)
         USAGE="$USAGE_INSTALL"
-        PATTERN_SHORT="vhl"
-        PATTERN_LONG="version|help|lang"
+        PATTERN_SHORT="hl"
+        PATTERN_LONG="help|lang"
         ;;
     update)
         USAGE="$USAGE_UPDATE"
@@ -599,10 +599,10 @@ case "$SUBCMD" in
 install | update | uninstall | status)
     parse_arguments "$@"
     ;;
-version)
+-v | --version | version)
     show_version
     ;;
-help)
+-h | --help | help)
     show_help "$USAGE_GLOBAL"
     ;;
 *)
