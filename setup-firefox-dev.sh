@@ -3,7 +3,7 @@
 set -o nounset
 
 NAME=$(basename "$0")
-VERSION="v0.8.2"
+VERSION="v0.9.0"
 readonly NAME VERSION
 
 BASE_URL="https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64"
@@ -197,7 +197,7 @@ download() {
         # Success
         kill "$spinner_pid" &>/dev/null
         wait "$spinner_pid" 2>/dev/null
-        printf "\r\e[KDownloading %s (%s) [DONE]\n" "$filename" "$lang"
+        printf "\r\e[KDownloading %s (%s) [\033[32m✔\033[0m]\n" "$filename" "$lang"
     else
         # Failure
         kill "$spinner_pid" &>/dev/null
